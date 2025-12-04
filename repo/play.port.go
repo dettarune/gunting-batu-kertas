@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -40,26 +41,49 @@ func (r *PlayRepo) CreateRoom(playerName, roomName string) error {
 
 	return nil
 }
-
 func (r *PlayRepo) JoinRoom(playerName, roomName string) error {
 	ctx := context.Background()
 
-	// Check if room exists
-	result, err := r.redis.Get(ctx, `room:`+roomName).Result()
+	roomOwner, err := r.redis.Get(ctx, "room:"+roomName).Result()
 	if err == redis.Nil {
 		return fmt.Errorf("room not found")
 	}
 	if err != nil {
 		return fmt.Errorf("failed to check room: %w", err)
 	}
-
-	if result == "" {
+	if roomOwner == "" {
 		return fmt.Errorf("room not found")
 	}
 
-	// Add player to room
-	if err := r.redis.Set(ctx, `player:`+roomName, playerName, 300*time.Second).Err(); err != nil {
-		return fmt.Errorf("failed to join room: %w", err)
+	type PlayerRoom struct {
+		Player1 string `json:"player1"`
+		Player2 string `json:"player2"`
+	}
+
+	var pr PlayerRoom
+
+	jsonStr, err := r.redis.Get(ctx, "playerRoom:"+roomName).Result()
+	if err == nil {
+		_ = json.Unmarshal([]byte(jsonStr), &pr)
+	} else if err == redis.Nil {
+		pr.Player1 = roomOwner
+	} else {
+		return fmt.Errorf("failed to get playerRoom: %w", err)
+	}
+
+	if pr.Player1 == playerName || pr.Player2 == playerName {
+		return fmt.Errorf("player sudah ada di room")
+	}
+
+	if pr.Player2 == "" {
+		pr.Player2 = playerName
+	} else {
+		return fmt.Errorf("room sudah penuh")
+	}
+
+	jsonBytes, _ := json.Marshal(pr)
+	if err := r.redis.Set(ctx, "playerRoom:"+roomName, jsonBytes, 300*time.Second).Err(); err != nil {
+		return fmt.Errorf("failed to save playerRoom: %w", err)
 	}
 
 	return nil
