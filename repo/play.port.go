@@ -25,7 +25,6 @@ func (r *PlayRepo) CreateRoom(playerName, roomName string) any {
 	if result != "" {
 		return "sudah ada roomnya"
 	} else {
-		fmt.Println("ii")
 		setRoom := r.redis.Set(context.Background(), `room:`+roomName, playerName, 300*time.Second)
 		setFightRoom := r.redis.Set(context.Background(), `fightroom:`+roomName, "", 300*time.Second)
 		if setRoom.Err() != nil {
@@ -34,7 +33,6 @@ func (r *PlayRepo) CreateRoom(playerName, roomName string) any {
 		if setFightRoom.Err() != nil {
 			return setFightRoom.Err()
 		}
-		fmt.Println(setRoom, setFightRoom)
 	}
 	return nil
 }
